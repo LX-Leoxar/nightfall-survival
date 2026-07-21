@@ -172,16 +172,16 @@ function quickEquip(n) {
 }
 
 // ---------------- COLLISIONI ----------------
-const PLAYER_RADIUS = 18;
+const PLAYER_RADIUS = 14;
 function getSolids() {
   const solids = [];
   for (const r of state.resources) {
-    if (r.type === 'tree') solids.push({ x:r.x, y:r.y, radius:34 });
-    else if (r.type === 'rock') solids.push({ x:r.x, y:r.y, radius:30 });
+    if (r.type === 'tree') solids.push({ x:r.x, y:r.y, radius:24 });
+    else if (r.type === 'rock') solids.push({ x:r.x, y:r.y, radius:20 });
   }
   for (const s of state.structures) {
-    if (s.type === 'wall') solids.push({ x:s.x, y:s.y, radius:36 });
-    else if (s.type === 'campfire') solids.push({ x:s.x, y:s.y, radius:26 });
+    if (s.type === 'wall') solids.push({ x:s.x, y:s.y, radius:26 });
+    else if (s.type === 'campfire') solids.push({ x:s.x, y:s.y, radius:18 });
   }
   return solids;
 }
@@ -203,8 +203,8 @@ setInterval(() => {
   if (keys['d']) { dx += Math.cos(me.angle+Math.PI/2)*speed; dy += Math.sin(me.angle+Math.PI/2)*speed; }
   if (dx || dy) {
     const solids = getSolids();
-    // prova il movimento pieno; se collide, scivola provando solo x o solo y
-    if (!collides(me.x+dx, me.y+dy, solids)) {
+    const alreadyStuck = collides(me.x, me.y, solids);
+    if (alreadyStuck || !collides(me.x+dx, me.y+dy, solids)) {
       me.x += dx; me.y += dy;
     } else if (!collides(me.x+dx, me.y, solids)) {
       me.x += dx;
