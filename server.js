@@ -10,8 +10,8 @@ app.use(express.static('public'));
 
 // ---------------- CONFIG ----------------
 const WORLD_SIZE = 2000;
-const DAY_LENGTH = 120000; // 2 minuti giorno
-const NIGHT_LENGTH = 90000; // 1.5 minuti notte
+const DAY_LENGTH = 210000; // 3.5 minuti giorno
+const NIGHT_LENGTH = 60000; // 1 minuto notte
 const TICK_RATE = 50; // ms
 const MONSTER_SPAWN_INTERVAL = 4000;
 const MAX_MONSTERS_NIGHT = 25;
@@ -178,7 +178,7 @@ io.on('connection', (socket) => {
     const p = players[socket.id];
     const res = resources.find(r => r.id === resId);
     if (!p || !res || !p.alive) return;
-    if (dist(p, res) > 60) return;
+    if (dist(p, res) > 80) return;
     res.amount -= 1;
     if (res.type === 'tree') p.inventory.wood += 2;
     if (res.type === 'rock') p.inventory.stone += 2;
