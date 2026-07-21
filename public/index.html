@@ -84,6 +84,7 @@ window.addEventListener('resize', resize); resize();
 let myId = null, worldSize = 2000, recipes = {};
 let state = { players:{}, resources:[], structures:[], monsters:[], projectiles:[], isNight:false };
 let me = { x:300, y:300, angle:0 };
+let pitch = 0;
 let keys = {};
 let pointerLocked = false;
 let craftMenuOpen = false;
@@ -130,6 +131,8 @@ document.addEventListener('pointerlockchange', () => { pointerLocked = document.
 document.addEventListener('mousemove', e => {
   if (!pointerLocked) return;
   me.angle += e.movementX * 0.0025;
+  pitch -= e.movementY * 0.0025;
+  pitch = Math.max(-0.6, Math.min(0.6, pitch));
 });
 canvas.addEventListener('mousedown', e => {
   if (!pointerLocked) return;
@@ -229,11 +232,21 @@ const FOV = Math.PI/3;
 
 function render() {
   const w = canvas.width, h = canvas.height;
+  const horizon = h/2 + pitch * h;
   // cielo/pavimento
   const skyColor = state.isNight ? '#0a0a20' : '#5a9bd4';
   const groundColor = state.isNight ? '#141014' : '#5a4a3a';
-  ctx.fillStyle = skyColor; ctx.fillRect(0,0,w,h/2);
-  ctx.fillStyle = groundColor; ctx.fillRect(0,h/2,w,h/2);
+  ctx.fillStyle = skyColor; ctx.fillRect(0,0,w,Math.max(0,horizon));
+  ctx.fillStyle = groundColor; ctx.fillRect(0,Math.max(0,horizon),w,h);
+
+  // griglia a terra: da senso di movimento reale mentre cammini/ti giri
+  ctx.strokeStyle = state.isNight ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 1;
+  for (let gd = 60; gd <= 900; gd += 60) {
+    const gy = horizon + Math.min(h, (h*0.075)*(400/gd)*2);
+    if (gy > h) continue;
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+  }
 
   // raccogli entità visibili (mostri, altri player, risorse, strutture, proiettili)
   const entities = [];
@@ -251,13 +264,13 @@ function render() {
   const visible = [];
   for (const e of entities) {
     const dx = e.x - me.x, dy = e.y - me.y;
-    const dist = Math.hypot(dx,dy);
-    if (dist > 900) continue;
+    const edist = Math.hypot(dx,dy);
+    if (edist > 900) continue;
     let angleTo = Math.atan2(dy,dx) - me.angle;
     while (angleTo > Math.PI) angleTo -= 2*Math.PI;
     while (angleTo < -Math.PI) angleTo += 2*Math.PI;
     if (Math.abs(angleTo) > FOV/2 + 0.3) continue;
-    visible.push({ ...e, dist, angleTo });
+    visible.push({ ...e, dist: edist, angleTo });
   }
   visible.sort((a,b) => b.dist - a.dist);
 
@@ -265,12 +278,12 @@ function render() {
     // proiezione prospettica corretta (basata su tangente, non lineare)
     const projX = Math.tan(e.angleTo) / Math.tan(FOV/2);
     const screenX = w/2 + projX * (w/2);
-    const dist = Math.max(e.dist, 30); // evita esplosioni di scala a distanza ~0
-    const scale = (400 / dist) * e.size;
-    const spriteH = Math.min(scale * 90, h * 1.4);
+    const clampedDist = Math.max(e.dist, 30); // evita esplosioni di scala a distanza ~0
+    const scale = (400 / clampedDist) * e.size;
+    const spriteH = Math.min(scale * 180, h * 2.4); // entità raddoppiate
     const spriteW = spriteH * 0.7;
-    const groundOffset = Math.min(h * 0.42, (h * 0.075) * (400 / dist));
-    const screenY = h/2 + groundOffset;
+    const groundOffset = Math.min(h * 0.5, (h * 0.075) * (400 / clampedDist));
+    const screenY = horizon + groundOffset;
     drawSprite(e, screenX, screenY, spriteW, spriteH);
   }
 
