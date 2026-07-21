@@ -261,9 +261,12 @@ function render() {
   visible.sort((a,b) => b.dist - a.dist);
 
   for (const e of visible) {
-    const screenX = w/2 + (e.angleTo / (FOV/2)) * (w/2);
-    const scale = Math.min(3, 250 / e.dist) * e.size;
-    const spriteH = scale * 90;
+    // proiezione prospettica corretta (basata su tangente, non lineare)
+    const projX = Math.tan(e.angleTo) / Math.tan(FOV/2);
+    const screenX = w/2 + projX * (w/2);
+    const dist = Math.max(e.dist, 30); // evita esplosioni di scala a distanza ~0
+    const scale = (400 / dist) * e.size;
+    const spriteH = Math.min(scale * 90, h * 1.4);
     const spriteW = spriteH * 0.7;
     const screenY = h/2 + (h*0.06);
     drawSprite(e, screenX, screenY, spriteW, spriteH);
