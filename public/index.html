@@ -65,6 +65,7 @@
   </div>
   <div id="equipped">Equipaggiato: <span id="equippedName">mani</span></div>
   <div id="crosshair">+</div>
+  <div id="gatherPrompt" style="display:none; position:absolute; top:56%; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); padding:6px 14px; border-radius:4px; font-size:13px; color:#ffd54f;">Premi E per raccogliere</div>
   <canvas id="viewmodel" width="300" height="220" style="position:absolute; bottom:0; right:8%; pointer-events:none;"></canvas>
   <div id="helpText">C: crafting | Q: piazza muro | 1-9: equipaggia rapido</div>
   <div id="craftMenu">
@@ -148,6 +149,14 @@ function tryGather() {
     if (d < closestD) { closest = r; closestD = d; }
   }
   if (closest) socket.emit('gather', closest.id);
+}
+
+function updateGatherPrompt() {
+  let inRange = false;
+  for (const r of state.resources) {
+    if (Math.hypot(r.x - me.x, r.y - me.y) < 90) { inRange = true; break; }
+  }
+  document.getElementById('gatherPrompt').style.display = inRange ? 'block' : 'none';
 }
 
 function placeStructure(type) {
@@ -266,15 +275,6 @@ function render() {
   ctx.fillStyle = skyColor; ctx.fillRect(0,0,w,Math.max(0,horizon));
   ctx.fillStyle = groundColor; ctx.fillRect(0,Math.max(0,horizon),w,h);
 
-  // griglia a terra: da senso di movimento reale mentre cammini/ti giri
-  ctx.strokeStyle = state.isNight ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.25)';
-  ctx.lineWidth = 1;
-  for (let gd = 50; gd <= 700; gd += 50) {
-    const groundOffset = Math.min(h * 0.5, (h * 0.075) * (400 / gd));
-    const gy = horizon + groundOffset;
-    if (gy > h || gy < horizon) continue;
-    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
-  }
 
   // raccogli entità visibili (mostri, altri player, risorse, strutture, proiettili)
   const entities = [];
@@ -306,12 +306,11 @@ function render() {
     // proiezione prospettica corretta (basata su tangente, non lineare)
     const projX = Math.tan(e.angleTo) / Math.tan(FOV/2);
     const screenX = w/2 + projX * (w/2);
-    const clampedDist = Math.max(e.dist, 30); // evita esplosioni di scala a distanza ~0
+    const clampedDist = Math.max(e.dist, 40); // evita esplosioni di scala a distanza ~0
     const scale = (400 / clampedDist) * e.size;
-    const spriteH = Math.min(scale * 180, h * 2.4); // entità raddoppiate
+    const spriteH = Math.min(scale * 180, h * 1.8); // entità raddoppiate
     const spriteW = spriteH * 0.7;
-    const groundOffset = Math.min(h * 0.5, (h * 0.075) * (400 / clampedDist));
-    const screenY = horizon + groundOffset;
+    const screenY = Math.min(h * 0.96, horizon + spriteH * 0.3);
     drawSprite(e, screenX, screenY, spriteW, spriteH);
   }
 
@@ -324,6 +323,7 @@ function render() {
   }
 
   drawViewmodel();
+  updateGatherPrompt();
   requestAnimationFrame(render);
 }
 
