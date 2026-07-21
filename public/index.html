@@ -32,7 +32,6 @@
   #deathScreen h1 { font-size:48px; margin-bottom:20px; }
   #deathScreen button { padding:12px 30px; font-size:16px; background:#e67e22; border:none; border-radius:4px; cursor:pointer; }
   #crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; font-size:18px; pointer-events:none; }
-  #minimap { position:absolute; top:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.5); border:1px solid #444; }
   #helpText { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); font-size:12px; color:#aaa; text-align:center; background:rgba(0,0,0,0.4); padding:6px 12px; border-radius:4px;}
 </style>
 </head>
@@ -57,7 +56,6 @@
 
 <div id="hud">
   <div id="dayNight">☀️ Giorno</div>
-  <canvas id="minimap" width="150" height="150"></canvas>
   <div id="healthBar">
     <div class="barBg"><div class="barFill" id="hpFill" style="width:100%"></div></div>
   </div>
@@ -79,8 +77,6 @@
 const socket = io();
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const minimap = document.getElementById('minimap');
-const mctx = minimap.getContext('2d');
 function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 window.addEventListener('resize', resize); resize();
 
@@ -106,7 +102,14 @@ socket.on('init', (data) => {
 socket.on('state', (s) => {
   state = s;
   if (myId && s.players[myId]) {
-    me = s.players[myId];
+    // teniamo hp/inventario dal server, ma la posizione/angolo restano quelli locali (predetti) per fluidità
+    const serverMe = s.players[myId];
+    me.hp = serverMe.hp; me.maxHp = serverMe.maxHp;
+    me.inventory = serverMe.inventory; me.equipped = serverMe.equipped;
+    me.hasArmor = serverMe.hasArmor; me.alive = serverMe.alive;
+    // correzione morbida se troppo distante dal server (es. respawn)
+    const drift = Math.hypot(serverMe.x - me.x, serverMe.y - me.y);
+    if (drift > 150) { me.x = serverMe.x; me.y = serverMe.y; }
     updateHUD();
   }
 });
@@ -274,7 +277,6 @@ function render() {
     ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
   }
 
-  drawMinimap();
   requestAnimationFrame(render);
 }
 
@@ -319,25 +321,6 @@ function drawSprite(e, x, y, w, h) {
     ctx.fillRect(-w*0.5,-h*0.05,w,h*0.1);
   }
   ctx.restore();
-}
-
-function drawMinimap() {
-  mctx.clearRect(0,0,150,150);
-  mctx.fillStyle = 'rgba(20,20,20,0.6)'; mctx.fillRect(0,0,150,150);
-  const scale = 150/worldSize;
-  for (const r of state.resources) {
-    mctx.fillStyle = r.type==='tree' ? '#2e7d32' : r.type==='rock' ? '#888' : '#c9b458';
-    mctx.fillRect(r.x*scale-1, r.y*scale-1, 2,2);
-  }
-  for (const m of state.monsters) {
-    mctx.fillStyle = '#e74c3c';
-    mctx.beginPath(); mctx.arc(m.x*scale, m.y*scale, 3,0,Math.PI*2); mctx.fill();
-  }
-  for (const id in state.players) {
-    const p = state.players[id];
-    mctx.fillStyle = id===myId ? '#f1c40f' : '#3498db';
-    mctx.beginPath(); mctx.arc(p.x*scale, p.y*scale, 3,0,Math.PI*2); mctx.fill();
-  }
 }
 
 render();
