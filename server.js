@@ -44,6 +44,7 @@ let nextResId = 1;
 let nextMonId = 1;
 let nextProjId = 1;
 let lastMonsterSpawn = 0;
+let lastResourceRespawn = 0;
 
 function rand(min, max) { return Math.random() * (max - min) + min; }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -150,6 +151,17 @@ function gameTick() {
     return true;
   });
   monsters = monsters.filter(m => m.hp > 0);
+
+  // rigenera risorse esaurite nel tempo
+  if (now - lastResourceRespawn > 8000) {
+    lastResourceRespawn = now;
+    const trees = resources.filter(r => r.type === 'tree').length;
+    const rocks = resources.filter(r => r.type === 'rock').length;
+    const fibers = resources.filter(r => r.type === 'fiber').length;
+    if (trees < 60) resources.push({ id: nextResId++, type:'tree', x: rand(50,WORLD_SIZE-50), y: rand(50,WORLD_SIZE-50), amount:5 });
+    if (rocks < 40) resources.push({ id: nextResId++, type:'rock', x: rand(50,WORLD_SIZE-50), y: rand(50,WORLD_SIZE-50), amount:5 });
+    if (fibers < 30) resources.push({ id: nextResId++, type:'fiber', x: rand(50,WORLD_SIZE-50), y: rand(50,WORLD_SIZE-50), amount:3 });
+  }
 
   io.emit('state', {
     players, resources, structures, monsters, projectiles,
