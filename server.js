@@ -220,7 +220,6 @@ io.on('connection', (socket) => {
   socket.on('placeStructure', (data) => {
     const p = players[socket.id];
     if (!p || !p.alive) return;
-    const cost = data.type === 'wall' ? 8 : data.type === 'campfire' ? { wood: 10, stone: 5 } : null;
     if (data.type === 'wall') {
       if (p.inventory.wood < 8 || p.inventory.stone < 2) return;
       p.inventory.wood -= 8; p.inventory.stone -= 2;
