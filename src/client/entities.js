@@ -189,7 +189,7 @@ export function createToolMesh(type) {
     stick.scale.set(0.7, 0.75, 0.7);
     const flame = createFlameSprite(20);
     flame.position.y = 20;
-    const light = new THREE.PointLight('#ff9a4a', 24, 260, 2);
+    const light = new THREE.PointLight('#ff9a4a', 24, 340, 1);
     light.position.y = 20;
     light.userData.seed = Math.random() * 100;
     g.add(stick, flame, light);
@@ -277,7 +277,7 @@ export function createStructureMesh(type) {
     }
     const flame = createFlameSprite(34);
     flame.position.y = 22;
-    const light = new THREE.PointLight('#ff8a3a', 55, 340, 2);
+    const light = new THREE.PointLight('#ff8a3a', 55, 500, 1);
     light.position.y = 20;
     light.userData.seed = Math.random() * 100;
     g.add(flame, light);
@@ -291,7 +291,7 @@ export function createStructureMesh(type) {
     post.position.y = 23;
     const flame = createFlameSprite(24);
     flame.position.y = 48;
-    const light = new THREE.PointLight('#ff9a4a', 24, 280, 2);
+    const light = new THREE.PointLight('#ff9a4a', 24, 340, 1);
     light.position.y = 48;
     light.userData.seed = Math.random() * 100;
     g.add(post, flame, light);
