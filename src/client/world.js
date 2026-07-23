@@ -133,10 +133,10 @@ export function updateWorldTime(isNight, dayTimer, cycleLen, camPos) {
 
   scene.background.copy(_c.copy(DAY_SKY).lerp(NIGHT_SKY, t));
   fog.color.copy(_c.copy(DAY_FOG).lerp(NIGHT_FOG, t));
-  fog.density = lerp(0.0016, 0.0052, t);
+  fog.density = lerp(0.0010, 0.0048, t);
 
   ambient.color.copy(_c.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, t));
-  ambient.intensity = lerp(0.6, 0.2, t);
+  ambient.intensity = lerp(0.6, 0.4, t);
   hemi.intensity = lerp(0.5, 0.12, t);
 
   sunMoon.color.copy(_c.copy(DAY_SUN).lerp(NIGHT_MOON, t));
