@@ -1,16 +1,21 @@
 {
-  "name": "survival-night-game",
-  "version": "1.0.0",
-  "description": "Survival game multiplayer - raccogli risorse di giorno, sopravvivi ai mostri di notte",
+  "name": "nightfall-survival",
+  "version": "2.0.0",
+  "description": "Survival game multiplayer 3D - raccogli risorse di giorno, sopravvivi ai mostri di notte",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "esbuild src/client/main.js --bundle --minify --sourcemap --outfile=public/js/game.bundle.js"
   },
   "dependencies": {
     "express": "^4.19.2",
     "socket.io": "^4.7.5"
   },
+  "devDependencies": {
+    "three": "^0.185.1",
+    "esbuild": "^0.28.1"
+  },
   "engines": {
-    "node": "18.x"
+    "node": ">=20"
   }
 }
