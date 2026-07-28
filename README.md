@@ -1,25 +1,27 @@
 # Nightfall Survival — 3D
 
-Survival multiplayer: di giorno raccogli legno/pietra/fibra e costruisci, di notte sopravvivi ai mostri.
-Riscrittura in 3D vero (Three.js) del prototipo originale, con netcode più fluido e alcuni sistemi di gioco
-completati/corretti.
+Survival multiplayer: di giorno raccogli legno/pietra/fibra/bacche e costruisci, di notte sopravvivi ai
+mostri. Riscrittura in 3D vero (Three.js) del prototipo originale, con più stanze, progressione tra le
+notti, fame/sete, classifica, riconnessione automatica e controlli touch per mobile.
 
 ## Struttura del progetto
 
 ```
-server.js              server autoritativo (Node + Express + Socket.io)
+server.js              server autoritativo multi-stanza (Node + Express + Socket.io)
 package.json
+data/                   (creata automaticamente) salvataggi locali di mondo e classifica
 public/
-  index.html            HTML/CSS del gioco (nessun framework)
-  js/game.bundle.js      bundle client già compilato (three.js + tutta la logica) — è quello che gira in produzione
-src/client/               sorgenti leggibili del client, in moduli ES (compilati nel bundle sopra)
-  net.js                  socket.io + interpolazione delle entità remote
-  world.js                 scena three.js, cielo, nebbia, luce giorno/notte
-  entities.js               mesh 3D di alberi/rocce/mostri/giocatori/strutture/proiettili
-  player.js                  controller in prima persona (WASD, mouse look, predizione+riconciliazione)
-  ui.js                       HUD, menu crafting/costruzione, minimappa
-  audio.js                     effetti sonori sintetizzati (nessun file audio esterno)
-  main.js                       punto di ingresso, collega tutto e fa girare il loop
+  index.html             HTML/CSS del gioco (nessun framework)
+  js/game.bundle.js       bundle client già compilato (three.js + tutta la logica) — gira in produzione
+src/client/                sorgenti leggibili del client, in moduli ES (compilati nel bundle sopra)
+  net.js                    socket.io, stanze, riconnessione, interpolazione delle entità remote
+  world.js                   scena three.js, cielo, nebbia, meteo (pioggia/nebbia), luce giorno/notte
+  entities.js                  mesh 3D: risorse (incl. cespugli di bacche), mostri per tipo, giocatori
+                                (con elmo/scudo/zaino), strutture (incl. fossa), proiettili
+  player.js                     controller in prima persona: WASD/mouse su desktop, joystick+touch su mobile
+  ui.js                          HUD (vita/fame/sete), menu crafting/costruzione, classifica, minimappa
+  audio.js                        effetti sonori sintetizzati (nessun file audio esterno)
+  main.js                          punto di ingresso, collega tutto e fa girare il loop
 ```
 
 ## Avvio locale
@@ -34,81 +36,81 @@ compilato e incluso.
 
 ## Deploy su Render (piano gratuito)
 
-Il progetto è pensato per restare compatibile con un deploy "as-is" identico a quello che avevi già:
-
 - **Build command**: `npm install`
 - **Start command**: `npm start`
 
-Non serve altro — il bundle del client è già pronto in `public/js/`, quindi Render non deve compilare
-nulla lato 3D. `three` ed `esbuild` sono `devDependencies` usati solo per generare quel bundle in locale,
-non servono a runtime.
+Non serve altro: il bundle del client è già pronto, `three` ed `esbuild` sono `devDependencies` usate
+solo per generarlo in locale, non servono a runtime.
 
-Note utili sul piano gratuito di Render (verificate al momento della consegna):
-- Il servizio si "addormenta" dopo ~15 minuti di inattività; la richiesta successiva lo risveglia in
-  30-60 secondi circa. Il primo giocatore di ogni sessione potrebbe quindi trovare una pagina bianca per
-  qualche secondo prima che il server risponda — è normale.
-- I WebSocket sono pienamente supportati (anche sul piano free), quindi Socket.io funziona senza
-  bisogno di fallback particolari.
-- Il piano gratuito gira su una singola istanza condivisa (0.1 CPU, 512MB RAM): per questo il server
-  ora manda molti meno dati per tick rispetto a prima (vedi sotto), invece di ottimizzare il calcolo in sé,
-  che con questi numeri di giocatori/mostri resta comunque leggero.
-- Se in futuro passi a un piano con più istanze, tieni presente che lo stato della partita oggi vive
-  tutto in memoria in un solo processo Node: con più istanze servirebbe un adapter condiviso (es. Redis)
-  per Socket.io. Sul piano free, con una sola istanza, non è un problema.
+**Persistenza e piano gratuito — nota importante**: il server salva periodicamente mondo e classifica su
+file (`data/rooms.json`, `data/leaderboard.json`) e li ricarica all'avvio. Sul piano gratuito di Render
+però il filesystem è **effimero**: viene azzerato ad ogni redeploy *e* ad ogni volta che l'istanza si
+riavvia (anche solo per lo spin-down/risveglio dopo inattività). In pratica su Render free questo
+salvataggio protegge lo stato solo finché l'istanza resta viva, non oltre — è comunque meglio di niente
+(un crash improvviso non cancella tutto), ma per una persistenza vera servirebbe un disco persistente
+(add-on a pagamento di Render, puoi puntarcelo con la variabile d'ambiente `DATA_DIR`) o un database
+esterno. In locale, o su un piano con disco persistente, funziona esattamente come una partita salvata.
+
+Altre note sul piano gratuito (verificate al momento della consegna): il servizio si addormenta dopo
+~15 minuti di inattività e la richiesta successiva lo risveglia in 30-60 secondi; i WebSocket sono
+pienamente supportati anche gratis, quindi Socket.io funziona senza fallback particolari; gira su
+un'unica istanza condivisa (0.1 CPU, 512MB RAM) — per questo lo stato di gioco vive tutto in memoria in
+un solo processo: se in futuro passi a più istanze ti servirà un adapter condiviso (es. Redis) per
+Socket.io, cosa che sul free (un'istanza sola) non serve.
 
 ## Modificare il client 3D
 
-Il file servito in produzione è `public/js/game.bundle.js`, generato da `src/client/`. Se lo modifichi,
-ricompila con:
+Il file servito in produzione è `public/js/game.bundle.js`, generato da `src/client/`. Dopo averlo
+modificato, ricompila con `npm run build` (richiede `three` ed `esbuild`, presenti con un `npm install`
+locale normale) e fai commit anche del nuovo `game.bundle.js`.
 
-```
-npm run build
-```
+## Come giocare in più stanze
 
-(richiede che `three` ed `esbuild` siano installati — con un `npm install` locale normale ci sono, dato
-che sono devDependencies). Poi fai commit anche del nuovo `game.bundle.js`.
+Nella schermata iniziale c'è un campo "Stanza" oltre al nome: chi lascia il campo vuoto entra nella
+stanza pubblica condivisa; chi digita un nome di stanza (es. "amici123") entra in un mondo separato,
+creato al volo se non esiste già, condiviso solo da chi usa lo stesso nome. Ogni stanza ha il proprio
+mondo, la propria progressione di notti e la propria classifica.
 
-## Cosa è cambiato rispetto al prototipo originale
+## Novità di questa versione rispetto alla release 3D precedente
 
-**Reso davvero 3D**: il rendering "pseudo-3D" a sprite in canvas 2D è stato sostituito con una vera scena
-Three.js — terreno, cielo/nebbia che transitano fra giorno e notte, luci dinamiche (falò, torce, molotov),
-ombre "finte" economiche, mostri con occhi che brillano nel buio, minimappa.
+- **Stanze multiple**: niente più un solo mondo condiviso da tutti — vedi sopra.
+- **Riconnessione automatica**: se cadi di rete o ricarichi la pagina, il browser ricorda la sessione
+  (token salvato in locale) e rientri nello stesso punto, con lo stesso inventario, senza dover
+  ripassare dalla schermata iniziale. Il personaggio resta "in pausa" sul server per 90 secondi prima di
+  essere considerato definitivamente uscito.
+- **Difficoltà crescente**: ogni notte sopravvissuta aumenta leggermente il numero e la forza dei mostri
+  (fino a un tetto, per restare giocabile). Ogni 5 notti compare un boss.
+- **Tre nuovi tipi di mostro** oltre a quello base: veloce e debole, corazzato e lento (più resistente
+  alle frecce), e il boss.
+- **Fame e sete**: calano nel tempo; a zero cominciano a togliere vita. Si ripristinano mangiando le
+  bacche raccolte dai cespugli (tasto F, o pulsante dedicato su mobile).
+- **Nuovi oggetti craftabili**: elmo e scudo (riducono ulteriormente il danno subito, si sommano
+  all'armatura), zaino (alza il limite di materiali grezzi trasportabili da 60 a 110).
+- **Nuova trappola**: la fossa rallenta i mostri che ci passano sopra (a differenza degli spuntoni, che
+  fanno danno diretto).
+- **Meteo dinamico**: pioggia e nebbia fitta si alternano al sereno a intervalli casuali, con pioggia
+  visibile e nebbia che riduce ulteriormente la visibilità.
+- **Classifica**: ad ogni morte viene registrato nome, notti sopravvissute e uccisioni; si consulta con
+  il tasto L (o il pulsante trofeo su mobile).
+- **Più varietà visiva**: alberi in 3 forme (chioma tonda, conifera stretta, albero morto spoglio), rocce
+  in 2 forme, mostri con sagoma/colore diversi per tipo.
+- **Controlli touch per mobile**: rilevati automaticamente. Joystick virtuale in basso a sinistra per il
+  movimento, trascinamento sullo schermo per guardarsi intorno, pulsanti per raccogliere/mangiare/
+  attaccare/crafting/costruzione/classifica. È una prima versione: non avendo potuto testarla su un
+  dispositivo reale, è il punto più probabile da dover aggiustare (dimensioni pulsanti, sensibilità dello
+  sguardo) dopo una prova sul telefono — le costanti rilevanti sono in cima a `player.js`.
 
-**Più fluido**:
-- Il movimento locale ora si aggiorna a piena frequenza di frame (era agganciato a un tick di rete di 20
-  volte al secondo, che lo rendeva "a scatti"); l'invio al server resta comunque a ~20/sec per non
-  intasare la rete.
-- Mostri, altri giocatori e proiettili vengono ora **interpolati** fra due istantanee del server invece di
-  scattare da una posizione all'altra ad ogni pacchetto ricevuto.
-- Il server non manda più l'intero elenco di risorse e strutture ad ogni tick (prima venivano ritrasmesse
-  20 volte al secondo anche se non cambiava nulla): ora viaggiano solo quando cambiano davvero (evento di
-  raccolta, costruzione, distruzione). Anche l'inventario di ciascun giocatore non viene più trasmesso a
-  tutti gli altri client, solo al proprietario.
+## Cosa NON è stato aggiunto
 
-**Bug corretti / funzionalità completate** (il codice originale li aveva già "predisposti" ma non
-funzionanti):
-- Muro/trappola/falò costavano le risorse **due volte** (una volta craftandoli in inventario, una seconda
-  volta piazzandoli) e in più non erano raggiungibili dall'interfaccia se non il muro. Ora hanno un
-  menu di costruzione dedicato (tasto Q) col costo corretto, pagato una sola volta.
-- Le trappole a spuntoni non facevano alcun danno: ora colpiscono i mostri che vi passano vicino.
-- Il falò non aveva alcun effetto oltre a bloccare il passaggio: ora cura lentamente chi gli sta vicino.
-- La torcia era craftabile ma impossibile da piazzare nel mondo: ora si piazza dal menu di costruzione.
-- La molotov era craftabile ma non esisteva alcun modo di usarla: ora si equipaggia e si lancia (tasto
-  destro), esplodendo in una zona di fuoco che danneggia i mostri nel tempo.
-- I mostri "aggiravano" i muri in modo un po' insensato senza mai romperli, rendendo le costruzioni
-  quasi inutili in difesa: ora, se un muro blocca davvero la strada verso il bersaglio, il mostro lo
-  attacca finché non lo abbatte.
+Solo la musica di sottofondo continua, come richiesto: tutto il resto della lista di idee (vedi la
+cronologia della chat) è incluso in questa versione. Restano effetti sonori puntuali sintetizzati, niente
+loop musicale.
 
-**Un po' più difficile da barare**: il server ora valida gli spostamenti (rifiuta salti implausibili e
-verifica le collisioni) invece di fidarsi ciecamente della posizione mandata dal client, e calcola da sé
-la posizione in cui piazzare una struttura invece di fidarsi delle coordinate ricevute.
+## Limiti noti
 
-## Limiti noti / idee per continuare
-
-- Pensato per desktop (pointer lock + tastiera/mouse): niente controlli touch per mobile.
-- Nessun suono/musica di sottofondo continuo, solo effetti puntuali sintetizzati via Web Audio.
-- L'intensità delle luci puntuali (falò/torce) è impostata "a occhio" — non avendo potuto testare il
-  rendering in un vero browser, sono il primo punto da ritoccare se qualcosa ti sembra troppo buio/chiaro
-  (le costanti sono all'inizio di `entities.js` e `world.js`, ben commentate).
-- Nessuna persistenza fra riavvii del server: mondo e progressi si resettano ad ogni deploy/riavvio,
-  proprio come nel prototipo originale.
+- L'intensità delle luci puntuali (falò/torce/fuoco) e i parametri dei controlli touch sono impostati "a
+  occhio" — non avendo potuto testare il rendering in un vero browser, sono i primi punti da ritoccare
+  se qualcosa non convince. Le costanti sono tutte in cima ai rispettivi file, ben commentate.
+- La classifica e il salvataggio del mondo sono per singola stanza/processo: se giochi su Render free e
+  l'istanza si riavvia, come spiegato sopra il progresso salvato va perso a meno di un disco persistente.
+- Nessun sistema di account: nomi duplicati nella stessa stanza sono permessi e non vengono distinti.

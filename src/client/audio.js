@@ -92,6 +92,9 @@ export function sfxDayBreak() {
   tone(660, 0.6, { type: 'sine', peak: 0.16, delay: 0.12 });
 }
 
+export function sfxRainStart() {
+  noiseBurst(1.1, { peak: 0.16, filterFreq: 3200, filterType: 'lowpass' });
+}
 export function setLowHpHeartbeat(active) {
   if (active && !heartbeatTimer) {
     const beat = () => tone(58, 0.18, { type: 'sine', peak: 0.26 });

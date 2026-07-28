@@ -15,8 +15,10 @@ const NIGHT_AMBIENT = new THREE.Color('#3c4a70');
 const DAY_SUN = new THREE.Color('#fff3d6');
 const NIGHT_MOON = new THREE.Color('#a9bce0');
 
-let ambient, hemi, sunMoon, fog, starsPoints, sunSpriteMesh;
+let ambient, hemi, sunMoon, fog, starsPoints, sunSpriteMesh, rainPoints, rainVelocities;
 const _c = new THREE.Color();
+const RAIN_COUNT = 480, RAIN_BOX = 320, RAIN_HEIGHT = 260;
+let rainFade = 0;
 
 export function initWorld(hostEl) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -40,6 +42,7 @@ export function initWorld(hostEl) {
   buildGround();
   buildStars();
   buildSunSprite();
+  buildRain();
 
   camera.rotation.order = 'YXZ';
   camera.position.set(300, EYE_HEIGHT, 300);
@@ -114,6 +117,22 @@ function buildSunSprite() {
   scene.add(sunSpriteMesh);
 }
 
+function buildRain() {
+  const positions = new Float32Array(RAIN_COUNT * 3);
+  rainVelocities = new Float32Array(RAIN_COUNT);
+  for (let i = 0; i < RAIN_COUNT; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * RAIN_BOX * 2;
+    positions[i * 3 + 1] = Math.random() * RAIN_HEIGHT;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * RAIN_BOX * 2;
+    rainVelocities[i] = 260 + Math.random() * 160;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: '#a9c9e0', size: 2.4, sizeAttenuation: true, transparent: true, opacity: 0, depthWrite: false });
+  rainPoints = new THREE.Points(geo, mat);
+  scene.add(rainPoints);
+}
+
 // 0 = pieno giorno, 1 = piena notte, con una breve transizione (alba/tramonto) all'inizio di ogni fase
 function computeNightT(isNight, dayTimer, cycleLen) {
   const TRANSITION_FRAC = 0.12;
@@ -128,21 +147,40 @@ function dayPhaseArc(dayTimer, cycleLen) {
 
 function lerp(a, b, f) { return a + (b - a) * f; }
 
-export function updateWorldTime(isNight, dayTimer, cycleLen, camPos) {
+export function updateWorldTime(isNight, dayTimer, cycleLen, camPos, weather, dt) {
   const t = computeNightT(isNight, dayTimer, cycleLen);
 
   scene.background.copy(_c.copy(DAY_SKY).lerp(NIGHT_SKY, t));
   fog.color.copy(_c.copy(DAY_FOG).lerp(NIGHT_FOG, t));
-  fog.density = lerp(0.0010, 0.0048, t);
+  const fogBoost = weather === 'fog' ? 0.0075 : weather === 'rain' ? 0.0022 : 0;
+  fog.density = lerp(0.0016, 0.0052, t) + fogBoost;
 
   ambient.color.copy(_c.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, t));
-  ambient.intensity = lerp(0.6, 0.4, t);
+  ambient.intensity = lerp(0.6, 0.2, t) * (weather === 'fog' ? 0.85 : weather === 'rain' ? 0.9 : 1);
   hemi.intensity = lerp(0.5, 0.12, t);
 
   sunMoon.color.copy(_c.copy(DAY_SUN).lerp(NIGHT_MOON, t));
-  sunMoon.intensity = lerp(1.5, 0.32, t);
+  sunMoon.intensity = lerp(1.5, 0.32, t) * (weather === 'fog' ? 0.6 : weather === 'rain' ? 0.75 : 1);
 
-  if (starsPoints) starsPoints.material.opacity = Math.max(0, (t - 0.35) / 0.65);
+  if (starsPoints) starsPoints.material.opacity = Math.max(0, (t - 0.35) / 0.65) * (weather === 'clear' ? 1 : 0.3);
+
+  const targetRain = weather === 'rain' ? 1 : 0;
+  const step = Math.min(1, (dt || 0.016) * 0.8);
+  rainFade += (targetRain - rainFade) * step;
+  if (rainPoints) {
+    rainPoints.material.opacity = rainFade * 0.5;
+    if (camPos) rainPoints.position.set(camPos.x, 0, camPos.z);
+    if (rainFade > 0.01) {
+      const pos = rainPoints.geometry.attributes.position;
+      const fallDt = dt || 0.016;
+      for (let i = 0; i < RAIN_COUNT; i++) {
+        let y = pos.getY(i) - rainVelocities[i] * fallDt;
+        if (y < 0) y = RAIN_HEIGHT;
+        pos.setY(i, y);
+      }
+      pos.needsUpdate = true;
+    }
+  }
 
   if (camPos) {
     starsPoints.position.copy(camPos);
@@ -155,7 +193,7 @@ export function updateWorldTime(isNight, dayTimer, cycleLen, camPos) {
     sunMoon.target.updateMatrixWorld();
     if (sunSpriteMesh) {
       sunSpriteMesh.position.set(sx, sy, sz);
-      sunSpriteMesh.material.opacity = sy > 20 ? lerp(1, 0.4, t) : 0;
+      sunSpriteMesh.material.opacity = sy > 20 ? lerp(1, 0.4, t) * (weather === 'clear' ? 1 : 0.4) : 0;
       sunSpriteMesh.material.color.copy(sunMoon.color);
     }
   }

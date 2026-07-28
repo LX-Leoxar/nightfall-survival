@@ -1,7 +1,9 @@
-// net.js — socket.io, stato condiviso lato client, interpolazione delle entità remote.
+// net.js — socket.io, stato condiviso lato client, interpolazione delle entità remote,
+// gestione stanze e riconnessione automatica tramite token salvato in localStorage.
 
 const INTERP_DELAY = 100; // ms: quanto "indietro nel tempo" renderizziamo mostri/altri giocatori
 const SNAPSHOT_BUFFER_MS = 1000;
+const STORAGE_KEY = 'nightfall_session_v1';
 
 export const socket = io(); // "io" è globale, caricato da /socket.io/socket.io.js prima di questo bundle
 
@@ -9,6 +11,8 @@ export const netState = {
   connected: false,
   joined: false,
   myId: null,
+  token: null,
+  roomId: null,
   worldSize: 2000,
   craftRecipes: {},
   buildRecipes: {},
@@ -18,9 +22,14 @@ export const netState = {
   snapshots: [],
   latest: null,
   myInventory: { wood: 5, stone: 2, fiber: 2, arrow: 0 },
-  myHp: 100, myMaxHp: 100, myAlive: true, myHasArmor: false, myEquipped: 'hand',
+  myInventoryCap: 60,
+  myHp: 100, myMaxHp: 100, myAlive: true,
+  myHasArmor: false, myHasHelmet: false, myHasShield: false, myHasBackpack: false,
+  myEquipped: 'hand',
+  myHunger: 100, myThirst: 100, myKills: 0,
   selfServerPos: null,
   spawnPos: null,
+  leaderboard: [],
   // callback opzionali, assegnati da altri moduli (audio/ui/entities) per reagire agli eventi
   // senza che net.js debba importarli (evita dipendenze circolari)
   onHitConfirm: null,
@@ -32,22 +41,53 @@ export const netState = {
   onStructureAdded: null,
   onStructureRemoved: null,
   onInit: null,
+  onLeaderboard: null,
 };
 
-export function connect(name) {
-  socket.emit('join', name);
+let pendingName = null, pendingRoomId = null;
+
+export function getStoredSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (s && s.name && s.roomId) return s;
+  } catch (e) { /* niente sessione salvata */ }
+  return null;
+}
+function saveSession() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ name: pendingName, roomId: pendingRoomId, token: netState.token })); } catch (e) { /* storage non disponibile */ }
+}
+export function clearSession() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignorato */ }
 }
 
-socket.on('connect', () => { netState.connected = true; });
+export function connect(name, roomId) {
+  pendingName = name;
+  pendingRoomId = (roomId || 'pubblica').toLowerCase();
+  const stored = getStoredSession();
+  const token = (stored && stored.roomId === pendingRoomId && stored.name === name) ? stored.token : null;
+  socket.emit('join', { name, roomId: pendingRoomId, token });
+}
+
+socket.on('connect', () => {
+  netState.connected = true;
+  // se il socket si è riconnesso dopo una caduta di rete e avevamo già una sessione attiva,
+  // rientriamo in automatico usando lo stesso token, senza richiedere alcuna azione all'utente
+  if (netState.joined && pendingName) {
+    socket.emit('join', { name: pendingName, roomId: pendingRoomId, token: netState.token });
+  }
+});
 socket.on('disconnect', () => { netState.connected = false; });
 
 socket.on('init', (data) => {
   netState.myId = data.id;
+  netState.token = data.token;
+  netState.roomId = data.roomId;
   netState.worldSize = data.worldSize;
   netState.craftRecipes = data.craftRecipes;
   netState.buildRecipes = data.buildRecipes;
   netState.equipOrder = data.equipOrder || netState.equipOrder;
   netState.myInventory = data.inventory;
+  netState.myInventoryCap = data.inventoryCap || 60;
   netState.resources.clear();
   for (const r of data.resources) netState.resources.set(r.id, r);
   netState.structures.clear();
@@ -55,11 +95,14 @@ socket.on('init', (data) => {
   netState.selfServerPos = { x: data.x, y: data.y };
   netState.spawnPos = { x: data.x, y: data.y };
   netState.joined = true;
+  saveSession();
   netState.onInit?.(data);
 });
 
 socket.on('inventory', (inv) => { netState.myInventory = inv; });
+socket.on('vitals', (v) => { netState.myHunger = v.hunger; netState.myThirst = v.thirst; netState.myKills = v.kills; });
 socket.on('hitConfirm', () => { netState.onHitConfirm?.(); });
+socket.on('leaderboard', (list) => { netState.leaderboard = list; netState.onLeaderboard?.(list); });
 
 socket.on('resourceAdded', (r) => { netState.resources.set(r.id, r); netState.onResourceAdded?.(r); });
 socket.on('resourceUpdate', (u) => {
@@ -85,7 +128,9 @@ socket.on('state', (s) => {
     const me = s.players[netState.myId];
     const oldHp = netState.myHp;
     netState.myHp = me.hp; netState.myMaxHp = me.maxHp;
-    netState.myAlive = me.alive; netState.myHasArmor = me.hasArmor; netState.myEquipped = me.equipped;
+    netState.myAlive = me.alive; netState.myHasArmor = me.hasArmor;
+    netState.myHasHelmet = me.hasHelmet; netState.myHasShield = me.hasShield; netState.myHasBackpack = me.hasBackpack;
+    netState.myEquipped = me.equipped;
     netState.selfServerPos = { x: me.x, y: me.y };
     if (me.hp < oldHp) netState.onDamaged?.(me.hp, oldHp);
   }
@@ -94,14 +139,16 @@ socket.on('state', (s) => {
 // ---- azioni verso il server ----
 export function sendMove(x, y, angle) { if (netState.joined) socket.emit('move', { x, y, angle }); }
 export function sendGather(resId) { socket.emit('gather', resId); }
+export function sendEat() { socket.emit('eat'); }
 export function sendCraft(itemType) { socket.emit('craft', itemType); }
 export function sendEquip(item) { socket.emit('equip', item); }
 export function sendPlaceStructure(type) { socket.emit('placeStructure', { type }); }
 export function sendMelee() { socket.emit('meleeAttack'); }
 export function sendRanged() { socket.emit('rangedAttack'); }
 export function sendRespawn() { socket.emit('respawn'); }
+export function requestLeaderboard() { socket.emit('getLeaderboard'); }
 
-// ---- interpolazione: data un'istante di rendering, calcola una vista interpolata delle entità dinamiche ----
+// ---- interpolazione: dato un istante di rendering, calcola una vista interpolata delle entità dinamiche ----
 export function getInterpolatedView() {
   const snaps = netState.snapshots;
   if (snaps.length === 0) return null;
@@ -123,11 +170,12 @@ export function getInterpolatedView() {
     projectiles: lerpEntityList(a.projectiles, b.projectiles, f),
     fireZones: b.fireZones,
     isNight: b.isNight, dayTimer: b.dayTimer, cycleLen: b.cycleLen,
+    nightCount: b.nightCount, weather: b.weather,
   };
 }
 
 function viewFromSingle(s) {
-  return { players: s.players, monsters: s.monsters, projectiles: s.projectiles, fireZones: s.fireZones, isNight: s.isNight, dayTimer: s.dayTimer, cycleLen: s.cycleLen };
+  return { players: s.players, monsters: s.monsters, projectiles: s.projectiles, fireZones: s.fireZones, isNight: s.isNight, dayTimer: s.dayTimer, cycleLen: s.cycleLen, nightCount: s.nightCount, weather: s.weather };
 }
 
 function lerp(x, y, f) { return x + (y - x) * f; }

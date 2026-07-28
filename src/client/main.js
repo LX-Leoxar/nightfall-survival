@@ -5,7 +5,7 @@ import * as entities from './entities.js';
 import * as player from './player.js';
 import * as ui from './ui.js';
 import * as audio from './audio.js';
-import { netState, getInterpolatedView, sendEquip } from './net.js';
+import { netState, getInterpolatedView, sendEquip, sendEat } from './net.js';
 
 const canvasHost = document.getElementById('canvasHost');
 initWorld(canvasHost);
@@ -34,7 +34,7 @@ setViewmodel('hand');
 
 function updateViewmodel(dt) {
   if (netState.myEquipped !== currentToolType) setViewmodel(netState.myEquipped);
-  const moving = (player.keys['w'] || player.keys['a'] || player.keys['s'] || player.keys['d']) && player.pointerLocked && netState.myAlive;
+  const moving = (player.keys['w'] || player.keys['a'] || player.keys['s'] || player.keys['d']) && (player.pointerLocked || player.isTouchDevice) && netState.myAlive;
   vmBobPhase += dt * (moving ? 9 : 2.2);
   if (currentToolMesh) {
     currentToolMesh.position.set(Math.cos(vmBobPhase * 0.5) * (moving ? 1.4 : 0.4), Math.sin(vmBobPhase) * (moving ? 1.8 : 0.6), 0);
@@ -57,17 +57,24 @@ netState.onStructureRemoved = (id) => entities.removeStructureFromScene(id);
 netState.onHitConfirm = () => audio.sfxHit();
 netState.onDamaged = () => { ui.flashHit(); audio.sfxHurt(); };
 netState.onNightChange = (isNight) => { isNight ? audio.sfxNightFall() : audio.sfxDayBreak(); };
+netState.onLeaderboard = (list) => ui.renderLeaderboard(list);
 
-// ---------------- tasti di azione (E raccogli, C crafting, Q costruzione, 1-9 equip rapido) ----------------
+// ---------------- tasti di azione ----------------
+// E raccogli · F mangia · C crafting · Q costruzione · L classifica · 1-9 equip rapido
 document.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   const key = e.key.toLowerCase();
   if (key === 'e') {
     if (player.tryGather()) audio.sfxGather();
+  } else if (key === 'f') {
+    sendEat();
   } else if (key === 'c') {
     ui.toggleCraftMenu();
   } else if (key === 'q') {
     ui.toggleBuildMenu();
+  } else if (key === 'l' || key === 'tab') {
+    e.preventDefault();
+    ui.toggleLeaderboard();
   } else if (key === 'escape') {
     if (ui.anyMenuOpen()) { ui.closeMenus(); player.requestLock(); }
   } else if (key >= '1' && key <= '9') {
@@ -79,6 +86,7 @@ document.addEventListener('keydown', (e) => {
 // ---------------- loop principale ----------------
 let lastTime = performance.now();
 let minimapAccum = 0;
+let lastWeather = 'clear';
 
 function animate() {
   requestAnimationFrame(animate);
@@ -96,7 +104,11 @@ function animate() {
     entities.syncPlayers(view.players, netState.myId);
     entities.syncProjectiles(view.projectiles);
     entities.syncFireZones(view.fireZones);
-    updateWorldTime(view.isNight, view.dayTimer, view.cycleLen, camera.position);
+    updateWorldTime(view.isNight, view.dayTimer, view.cycleLen, camera.position, view.weather || 'clear', dt);
+    if (view.weather && view.weather !== lastWeather) {
+      if (view.weather === 'rain') audio.sfxRainStart();
+      lastWeather = view.weather;
+    }
   }
   entities.updateFlames(now);
 

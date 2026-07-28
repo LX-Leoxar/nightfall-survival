@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Nightfall Survival</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,13 +16,14 @@
     --ember-bright: #ff9a54;
     --moon: #7fa2c4;
     --blood: #c73e3e;
+    --thirst: #4a8fc7;
     --bone: #e9e3d6;
     --ash: #8d8779;
     --font-display: 'Cinzel', serif;
     --font-mono: 'Space Mono', monospace;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--void); }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--void); touch-action: none; }
   body { font-family: var(--font-mono); color: var(--bone); }
 
   #canvasHost { position: fixed; inset: 0; cursor: crosshair; }
@@ -38,18 +39,23 @@
     box-shadow: 0 0 22px rgba(232,118,58,0.08), 0 6px 18px rgba(0,0,0,0.4);
   }
 
-  #dayNightWrap { position: absolute; top: 18px; left: 18px; padding: 8px 14px; min-width: 210px; }
+  #dayNightWrap { position: absolute; top: 18px; left: 18px; padding: 8px 14px; min-width: 220px; }
   #dayNight { font-size: 13px; letter-spacing: 0.02em; }
   #dayProgressTrack { margin-top: 6px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); overflow: hidden; }
   #dayProgressFill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--ember), #ffcf7a); transition: width 0.4s linear; }
+  #nightCount { margin-top: 6px; font-size: 10.5px; color: var(--ash); }
+  #weatherLabel { font-size: 10.5px; color: var(--moon); margin-top: 2px; }
 
   #connStatus { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); display: none; padding: 5px 12px; font-size: 11px; color: var(--ember-bright); background: rgba(10,12,16,0.8); border: 1px solid var(--ember); border-radius: 4px; }
 
   #healthBar { position: absolute; bottom: 22px; left: 22px; width: 230px; }
-  .barBg { background: rgba(0,0,0,0.5); border: 1px solid var(--panel-border); height: 20px; border-radius: 4px; overflow: hidden; }
+  .barBg { background: rgba(0,0,0,0.5); border: 1px solid var(--panel-border); height: 14px; border-radius: 4px; overflow: hidden; margin-bottom: 4px; }
   #hpFill { height: 100%; width: 100%; background: linear-gradient(90deg, #7d1f1f, var(--blood)); transition: width 0.25s ease-out; }
+  #hungerFill { height: 100%; width: 100%; background: linear-gradient(90deg, #6b5a17, #d9b23a); transition: width 0.25s ease-out; }
+  #thirstFill { height: 100%; width: 100%; background: linear-gradient(90deg, #1f4a6b, var(--thirst)); transition: width 0.25s ease-out; }
+  .barLabel { font-size: 9px; color: var(--ash); margin-bottom: 2px; letter-spacing: 0.05em; }
 
-  #inventory { position: absolute; bottom: 22px; right: 22px; padding: 10px 16px; font-size: 12px; min-width: 170px; max-height: 40vh; overflow-y: auto; }
+  #inventory { position: absolute; bottom: 22px; right: 22px; padding: 10px 16px; font-size: 12px; min-width: 175px; max-height: 34vh; overflow-y: auto; }
   #inventory strong { color: var(--ember-bright); font-family: var(--font-display); font-weight: 600; letter-spacing: 0.03em; font-size: 12px; }
   #invList div { margin-top: 4px; color: var(--ash); }
 
@@ -58,11 +64,13 @@
 
   #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 6px; height: 6px; border-radius: 50%; background: rgba(233,227,214,0.75); box-shadow: 0 0 4px rgba(0,0,0,0.6); }
 
-  #gatherPrompt { display: none; position: absolute; top: 58%; left: 50%; transform: translateX(-50%); padding: 6px 14px; font-size: 12px; color: var(--ember-bright); background: rgba(10,12,16,0.75); border-radius: 4px; border: 1px solid var(--panel-border); }
+  #gatherPrompt, #eatPrompt { display: none; position: absolute; left: 50%; transform: translateX(-50%); padding: 6px 14px; font-size: 12px; color: var(--ember-bright); background: rgba(10,12,16,0.75); border-radius: 4px; border: 1px solid var(--panel-border); }
+  #gatherPrompt { top: 58%; }
+  #eatPrompt { top: 64%; color: var(--thirst); }
 
-  #helpText { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--ash); text-align: center; background: rgba(10,12,16,0.5); padding: 6px 14px; border-radius: 4px; white-space: nowrap; }
+  #helpText { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); font-size: 10.5px; color: var(--ash); text-align: center; background: rgba(10,12,16,0.5); padding: 6px 14px; border-radius: 4px; white-space: nowrap; }
 
-  #minimapWrap { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); margin-top: 58px; }
+  #minimapWrap { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); margin-top: 74px; }
   #minimapCanvas { border-radius: 50%; border: 1px solid var(--panel-border); background: rgba(8,9,13,0.4); }
 
   .menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); padding: 22px 24px; display: none; pointer-events: all; min-width: 360px; max-height: 72vh; overflow-y: auto; }
@@ -74,6 +82,11 @@
   .menuItem button:hover { background: var(--ember-bright); }
   .menuItem button.secondary { background: transparent; border: 1px solid var(--moon); color: var(--moon); }
   .menuItem button.secondary:hover { background: rgba(127,162,196,0.15); }
+
+  #leaderboardPanel .lbRow { display: grid; grid-template-columns: 34px 1fr 50px 50px; gap: 8px; align-items: center; padding: 7px 10px; margin: 4px 0; background: rgba(255,255,255,0.03); border-radius: 4px; font-size: 12px; }
+  #leaderboardPanel .lbRank { color: var(--ember-bright); font-weight: 700; }
+  #leaderboardPanel .lbStat { color: var(--ash); font-size: 11px; }
+  #leaderboardPanel .lbEmpty { color: var(--ash); font-size: 12px; padding: 10px 0; }
 
   #hitFlash { position: fixed; inset: 0; background: var(--blood); opacity: 0; pointer-events: none; z-index: 5; }
   #lowHpVignette { position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: 4; transition: opacity 0.3s ease; box-shadow: inset 0 0 160px 40px var(--blood); }
@@ -98,21 +111,43 @@
     color: var(--bone); text-shadow: 0 0 24px rgba(232,118,58,0.55), 0 0 3px rgba(0,0,0,0.8);
     margin-bottom: 26px;
   }
-  #deathScreen h1 { font-family: var(--font-display); font-weight: 700; font-size: 40px; color: var(--blood); margin-bottom: 22px; letter-spacing: 0.04em; text-shadow: 0 0 20px rgba(199,62,62,0.6); }
+  #deathScreen h1 { font-family: var(--font-display); font-weight: 700; font-size: 40px; color: var(--blood); margin-bottom: 14px; letter-spacing: 0.04em; text-shadow: 0 0 20px rgba(199,62,62,0.6); }
+  #deathStats { font-size: 12.5px; color: var(--ash); margin-bottom: 20px; z-index: 1; }
 
-  #nameInput {
-    padding: 12px 16px; font-size: 15px; font-family: var(--font-mono); border-radius: 4px;
+  #nameInput, #roomInput {
+    padding: 11px 16px; font-size: 14px; font-family: var(--font-mono); border-radius: 4px;
     border: 1px solid var(--panel-border); background: rgba(255,255,255,0.04); color: var(--bone);
-    margin-bottom: 14px; width: 280px; text-align: center; z-index: 1;
+    margin-bottom: 12px; width: 280px; text-align: center; z-index: 1;
   }
-  #nameInput:focus { outline: none; border-color: var(--ember); }
+  #nameInput:focus, #roomInput:focus { outline: none; border-color: var(--ember); }
+  #roomInput { font-size: 12.5px; color: var(--moon); }
   #joinBtn, #respawnBtn {
     padding: 12px 30px; font-size: 14px; font-family: var(--font-mono); font-weight: 700;
     background: var(--ember); border: none; border-radius: 4px; color: #1a0f08; cursor: pointer;
     letter-spacing: 0.04em; z-index: 1; transition: background 0.15s ease, transform 0.1s ease;
   }
   #joinBtn:hover, #respawnBtn:hover { background: var(--ember-bright); transform: translateY(-1px); }
-  #joinScreen p { margin-top: 18px; color: var(--ash); font-size: 11.5px; max-width: 460px; line-height: 1.7; z-index: 1; }
+  #joinScreen p { margin-top: 18px; color: var(--ash); font-size: 11px; max-width: 460px; line-height: 1.7; z-index: 1; }
+
+  /* ---- controlli touch (mobile) ---- */
+  #touchControls { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+  #touchLookArea { position: absolute; inset: 0; pointer-events: all; touch-action: none; }
+  #touchJoystickBase {
+    position: absolute; left: 26px; bottom: 26px; width: 100px; height: 100px; border-radius: 50%;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--panel-border); pointer-events: all; touch-action: none;
+  }
+  #touchJoystickKnob {
+    position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; margin: -21px 0 0 -21px; border-radius: 50%;
+    background: rgba(232,118,58,0.5); border: 1px solid var(--ember); transition: transform 0.05s linear;
+  }
+  #touchButtons { position: absolute; right: 18px; bottom: 22px; display: grid; grid-template-columns: repeat(2, 58px); gap: 10px; pointer-events: all; }
+  .touchBtn {
+    width: 58px; height: 58px; border-radius: 50%; background: var(--panel); border: 1px solid var(--panel-border);
+    color: var(--bone); font-size: 22px; display: flex; align-items: center; justify-content: center; pointer-events: all;
+  }
+  .touchBtn.big { background: rgba(232,118,58,0.25); border-color: var(--ember); }
+  #touchTopButtons { position: absolute; top: 18px; right: 18px; display: flex; gap: 8px; pointer-events: all; }
+  #touchTopButtons .touchBtn { width: 44px; height: 44px; font-size: 17px; }
 </style>
 </head>
 <body>
@@ -123,15 +158,18 @@
   <div class="embers" id="joinEmbers"></div>
   <h1>🌙 NIGHTFALL SURVIVAL</h1>
   <input id="nameInput" placeholder="Il tuo nome" maxlength="14">
+  <input id="roomInput" placeholder="Stanza (vuoto = pubblica)" maxlength="20">
   <button id="joinBtn">Entra nel gioco</button>
   <p>
     WASD movimento • mouse per guardarti intorno (clic per attivare) • click sinistro attacco mischia • click destro arco/molotov<br>
-    E raccogli/interagisci • C crafting • Q costruzione • 1-9 equipaggia rapido
+    E raccogli • F mangia • C crafting • Q costruzione • L classifica • 1-9 equipaggia rapido<br>
+    Stanze diverse sono mondi separati: usa lo stesso nome-stanza dei tuoi amici per giocare insieme.
   </p>
 </div>
 
 <div id="deathScreen">
   <h1>💀 SEI MORTO</h1>
+  <div id="deathStats"></div>
   <button id="respawnBtn">Rinasci</button>
 </div>
 
@@ -141,16 +179,26 @@
   <div id="dayNightWrap" class="panel">
     <div id="dayNight">☀️ Giorno</div>
     <div id="dayProgressTrack"><div id="dayProgressFill"></div></div>
+    <div id="nightCount">Notte 0</div>
+    <div id="weatherLabel"></div>
   </div>
 
   <div id="minimapWrap"><canvas id="minimapCanvas" width="140" height="140"></canvas></div>
 
-  <div id="healthBar"><div class="barBg"><div id="hpFill"></div></div></div>
+  <div id="healthBar">
+    <div class="barLabel">VITA</div>
+    <div class="barBg"><div id="hpFill"></div></div>
+    <div class="barLabel">FAME</div>
+    <div class="barBg"><div id="hungerFill"></div></div>
+    <div class="barLabel">SETE</div>
+    <div class="barBg"><div id="thirstFill"></div></div>
+  </div>
   <div id="inventory" class="panel"><strong>Inventario</strong><div id="invList"></div></div>
   <div id="equipped" class="panel">In mano: <span id="equippedName">mani</span></div>
   <div id="crosshair"></div>
   <div id="gatherPrompt">Premi E per raccogliere</div>
-  <div id="helpText">C: crafting · Q: costruzione · 1-9: equipaggia rapido · tasto destro: arco/molotov</div>
+  <div id="eatPrompt">Premi F per mangiare una bacca</div>
+  <div id="helpText">C: crafting · Q: costruzione · L: classifica · F: mangia · 1-9: equipaggia rapido</div>
 
   <div id="craftMenu" class="menu panel">
     <h2>🔨 Crafting <span style="color:var(--ash); font-weight:400; font-size:11px;">(C per chiudere)</span></h2>
@@ -159,6 +207,26 @@
   <div id="buildMenu" class="menu panel">
     <h2>🏗️ Costruzione <span style="color:var(--ash); font-weight:400; font-size:11px;">(Q per chiudere)</span></h2>
     <div id="buildList"></div>
+  </div>
+  <div id="leaderboardPanel" class="menu panel">
+    <h2>🏆 Classifica <span style="color:var(--ash); font-weight:400; font-size:11px;">(L per chiudere)</span></h2>
+    <div id="leaderboardList"></div>
+  </div>
+</div>
+
+<div id="touchControls">
+  <div id="touchLookArea"></div>
+  <div id="touchJoystickBase"><div id="touchJoystickKnob"></div></div>
+  <div id="touchTopButtons">
+    <button id="touchCraftBtn" class="touchBtn">🔨</button>
+    <button id="touchBuildBtn" class="touchBtn">🏗️</button>
+    <button id="touchLeaderboardBtn" class="touchBtn">🏆</button>
+  </div>
+  <div id="touchButtons">
+    <button id="touchGatherBtn" class="touchBtn">✋</button>
+    <button id="touchEatBtn" class="touchBtn">🍓</button>
+    <button id="touchRangedBtn" class="touchBtn big">🏹</button>
+    <button id="touchMeleeBtn" class="touchBtn big">⚔️</button>
   </div>
 </div>
 

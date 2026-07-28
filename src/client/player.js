@@ -15,11 +15,16 @@ const RECONCILE_LERP = 0.12; // frazione di correzione morbida applicata ogni fr
 export const me = { x: 300, y: 300, angle: 0 };
 export const keys = {};
 export let pointerLocked = false;
+export const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0;
 
 let yaw = 0, pitch = 0;
 let sendTimer = 0;
 let bobPhase = 0;
 let canvasEl = null;
+let touchMoveId = null, touchLookId = null;
+let touchMoveOrigin = { x: 0, y: 0 };
+let touchMoveVec = { x: 0, y: 0 };
+let touchLookLast = { x: 0, y: 0 };
 
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -29,6 +34,11 @@ export function initPlayer(canvas) {
   canvasEl = canvas;
   document.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
   document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+  if (isTouchDevice) {
+    setupTouchControls();
+    return;
+  }
 
   canvas.addEventListener('click', () => { if (!pointerLocked && netState.myAlive) canvas.requestPointerLock(); });
   document.addEventListener('pointerlockchange', () => { pointerLocked = document.pointerLockElement === canvas; });
@@ -40,18 +50,77 @@ export function initPlayer(canvas) {
   });
   canvas.addEventListener('mousedown', e => {
     if (!pointerLocked || !netState.myAlive) return;
-    if (e.button === 0) sendMelee();
-    if (e.button === 2) {
-      sendRanged();
-      if (netState.myEquipped === 'bow' && (netState.myInventory.arrow || 0) > 0) sfxBowShot();
-      else if (netState.myEquipped === 'molotov' && (netState.myInventory.molotov || 0) > 0) sfxMolotovThrow();
-    }
+    if (e.button === 0) fireMelee();
+    if (e.button === 2) fireRanged();
   });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-export function requestLock() { canvasEl?.requestPointerLock(); }
-export function releaseLock() { if (document.pointerLockElement) document.exitPointerLock(); }
+export function fireMelee() { if (netState.myAlive) sendMelee(); }
+export function fireRanged() {
+  if (!netState.myAlive) return;
+  sendRanged();
+  if (netState.myEquipped === 'bow' && (netState.myInventory.arrow || 0) > 0) sfxBowShot();
+  else if (netState.myEquipped === 'molotov' && (netState.myInventory.molotov || 0) > 0) sfxMolotovThrow();
+}
+
+// ---------------- controlli touch (mobile): joystick virtuale + trascinamento per guardarsi intorno ----------------
+function setupTouchControls() {
+  const joyBase = document.getElementById('touchJoystickBase');
+  const joyKnob = document.getElementById('touchJoystickKnob');
+  const lookArea = document.getElementById('touchLookArea');
+  if (!joyBase || !lookArea) return;
+
+  joyBase.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    touchMoveId = t.identifier;
+    const rect = joyBase.getBoundingClientRect();
+    touchMoveOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    e.preventDefault();
+  }, { passive: false });
+
+  lookArea.addEventListener('touchstart', (e) => {
+    if (touchLookId !== null) return;
+    const t = e.changedTouches[0];
+    touchLookId = t.identifier;
+    touchLookLast = { x: t.clientX, y: t.clientY };
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchMoveId) {
+        const dx = t.clientX - touchMoveOrigin.x, dy = t.clientY - touchMoveOrigin.y;
+        const maxR = 46;
+        const d = Math.min(maxR, Math.hypot(dx, dy));
+        const ang = Math.atan2(dy, dx);
+        touchMoveVec = { x: Math.cos(ang) * (d / maxR), y: Math.sin(ang) * (d / maxR) };
+        if (joyKnob) joyKnob.style.transform = `translate(${Math.cos(ang) * d}px, ${Math.sin(ang) * d}px)`;
+      } else if (t.identifier === touchLookId) {
+        const dxL = t.clientX - touchLookLast.x, dyL = t.clientY - touchLookLast.y;
+        yaw -= dxL * 0.0034;
+        pitch -= dyL * 0.0034;
+        pitch = Math.max(-1.3, Math.min(1.3, pitch));
+        touchLookLast = { x: t.clientX, y: t.clientY };
+      }
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchend', (e) => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchMoveId) { touchMoveId = null; touchMoveVec = { x: 0, y: 0 }; if (joyKnob) joyKnob.style.transform = 'translate(0,0)'; }
+      if (t.identifier === touchLookId) touchLookId = null;
+    }
+  });
+  window.addEventListener('touchcancel', (e) => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchMoveId) { touchMoveId = null; touchMoveVec = { x: 0, y: 0 }; if (joyKnob) joyKnob.style.transform = 'translate(0,0)'; }
+      if (t.identifier === touchLookId) touchLookId = null;
+    }
+  });
+}
+
+export function requestLock() { if (!isTouchDevice) canvasEl?.requestPointerLock(); }
+export function releaseLock() { if (!isTouchDevice && document.pointerLockElement) document.exitPointerLock(); }
 
 export function spawnAt(x, y) { me.x = x; me.y = y; me.angle = 0; yaw = 0; pitch = 0; }
 
@@ -77,7 +146,8 @@ export function update(dt) {
   camera.rotation.set(pitch, yaw, 0, 'YXZ');
 
   const alive = netState.myAlive;
-  if (alive && pointerLocked) {
+  const inputActive = isTouchDevice || pointerLocked;
+  if (alive && inputActive) {
     camera.getWorldDirection(_forward);
     _forward.y = 0;
     if (_forward.lengthSq() > 0.0001) _forward.normalize();
@@ -88,9 +158,14 @@ export function update(dt) {
     if (keys['s']) _moveDir.sub(_forward);
     if (keys['a']) _moveDir.sub(_right);
     if (keys['d']) _moveDir.add(_right);
+    if (touchMoveVec.x || touchMoveVec.y) {
+      _moveDir.addScaledVector(_forward, -touchMoveVec.y);
+      _moveDir.addScaledVector(_right, touchMoveVec.x);
+    }
 
     if (_moveDir.lengthSq() > 0) {
-      _moveDir.normalize().multiplyScalar(SPEED_PER_SEC * dt);
+      const mag = Math.min(1, _moveDir.length());
+      _moveDir.normalize().multiplyScalar(SPEED_PER_SEC * dt * mag);
       const solids = getSolids();
       const nx = me.x + _moveDir.x, ny = me.y + _moveDir.z;
       const stuck = collides(me.x, me.y, solids);
@@ -117,7 +192,7 @@ export function update(dt) {
     }
   }
 
-  const bob = alive && pointerLocked ? Math.sin(bobPhase) * 2.1 : 0;
+  const bob = alive && inputActive ? Math.sin(bobPhase) * 2.1 : 0;
   camera.position.set(me.x, EYE_HEIGHT + bob, me.y);
 
   sendTimer += dt * 1000;

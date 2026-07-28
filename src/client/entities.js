@@ -9,15 +9,23 @@ const treeFoliageMatA = new THREE.MeshStandardMaterial({ color: '#2f6b34', rough
 const treeFoliageMatB = new THREE.MeshStandardMaterial({ color: '#3a7d3f', roughness: 0.9 });
 
 const rockGeo = new THREE.DodecahedronGeometry(20, 0);
+const rockJaggedGeo = new THREE.IcosahedronGeometry(19, 0);
 const rockMat = new THREE.MeshStandardMaterial({ color: '#7f8c8d', roughness: 1, flatShading: true });
 
 const fiberGeo = new THREE.SphereGeometry(9, 6, 4);
 const fiberMat = new THREE.MeshStandardMaterial({ color: '#c9b458', roughness: 1, flatShading: true });
 
+const bushLeafGeo = new THREE.SphereGeometry(12, 6, 5);
+const bushLeafMat = new THREE.MeshStandardMaterial({ color: '#3a6b34', roughness: 0.95, flatShading: true });
+const berryGeo = new THREE.SphereGeometry(2.6, 5, 4);
+const berryMat = new THREE.MeshStandardMaterial({ color: '#a3264f', roughness: 0.5, emissive: '#4a0f22', emissiveIntensity: 0.3 });
+
+const deadTreeGeo = new THREE.CylinderGeometry(2.5, 5, 48, 6);
+const branchGeo = new THREE.CylinderGeometry(1.2, 2, 18, 5);
+const deadTreeMat = new THREE.MeshStandardMaterial({ color: '#4a4238', roughness: 1 });
+
 const monsterBodyGeo = new THREE.SphereGeometry(1, 10, 8);
-const monsterMat = new THREE.MeshStandardMaterial({ color: '#5c1f18', roughness: 0.85 });
 const monsterEyeGeo = new THREE.SphereGeometry(2.6, 6, 6);
-const monsterEyeMat = new THREE.MeshStandardMaterial({ color: '#ff2b2b', emissive: '#ff2b2b', emissiveIntensity: 2.4 });
 
 const playerBodyGeo = new THREE.CapsuleGeometry(14, 34, 4, 8);
 const headGeo = new THREE.SphereGeometry(11, 10, 8);
@@ -94,15 +102,30 @@ export function orientToward(mesh, dx, dy) {
 // ---------------- factory: risorse ----------------
 export function createTreeMesh() {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(treeTrunkGeo, treeTrunkMat);
-  trunk.position.y = 17;
-  g.add(trunk);
-  const mat = Math.random() < 0.5 ? treeFoliageMatA : treeFoliageMatB;
-  const f1 = new THREE.Mesh(treeFoliageGeo, mat);
-  f1.position.y = 45;
-  const f2 = new THREE.Mesh(treeFoliageGeo, mat);
-  f2.position.y = 63; f2.scale.set(0.68, 0.68, 0.68);
-  g.add(f1, f2);
+  const roll = Math.random();
+  if (roll < 0.16) {
+    // albero morto: solo tronco spoglio e un paio di rami, per varietà (soprattutto di notte)
+    const trunk = new THREE.Mesh(deadTreeGeo, deadTreeMat);
+    trunk.position.y = 24;
+    const b1 = new THREE.Mesh(branchGeo, deadTreeMat); b1.position.set(4, 34, 0); b1.rotation.z = -0.9;
+    const b2 = new THREE.Mesh(branchGeo, deadTreeMat); b2.position.set(-4, 40, 2); b2.rotation.z = 1.0; b2.rotation.x = 0.4;
+    g.add(trunk, b1, b2);
+  } else if (roll < 0.4) {
+    // conifera alta e stretta
+    const trunk = new THREE.Mesh(treeTrunkGeo, treeTrunkMat);
+    trunk.position.y = 17; trunk.scale.set(0.85, 1.3, 0.85);
+    const mat = Math.random() < 0.5 ? treeFoliageMatA : treeFoliageMatB;
+    const f1 = new THREE.Mesh(treeFoliageGeo, mat); f1.position.y = 55; f1.scale.set(0.6, 1.5, 0.6);
+    g.add(trunk, f1);
+  } else {
+    // albero "rotondo" classico, a due strati di chioma
+    const trunk = new THREE.Mesh(treeTrunkGeo, treeTrunkMat);
+    trunk.position.y = 17;
+    const mat = Math.random() < 0.5 ? treeFoliageMatA : treeFoliageMatB;
+    const f1 = new THREE.Mesh(treeFoliageGeo, mat); f1.position.y = 45;
+    const f2 = new THREE.Mesh(treeFoliageGeo, mat); f2.position.y = 63; f2.scale.set(0.68, 0.68, 0.68);
+    g.add(trunk, f1, f2);
+  }
   g.rotation.y = Math.random() * Math.PI * 2;
   const s = 0.85 + Math.random() * 0.3;
   g.userData.baseScale = s;
@@ -113,11 +136,12 @@ export function createTreeMesh() {
 
 export function createRockMesh() {
   const g = new THREE.Group();
-  const m = new THREE.Mesh(rockGeo, rockMat);
+  const geo = Math.random() < 0.5 ? rockGeo : rockJaggedGeo;
+  const m = new THREE.Mesh(geo, rockMat);
   m.position.y = 10;
   m.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
   const s = 0.7 + Math.random() * 0.5;
-  m.scale.set(s, s * 0.7, s);
+  m.scale.set(s, s * (0.55 + Math.random() * 0.3), s);
   g.userData.baseScale = 1;
   g.add(m);
   addShadow(g, 18);
@@ -136,21 +160,73 @@ export function createFiberMesh() {
   return g;
 }
 
-// ---------------- factory: mostro ----------------
-export function createMonsterMesh() {
+export function createBushMesh() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(monsterBodyGeo, monsterMat);
-  body.scale.set(20, 24, 24);
-  body.position.y = 24;
-  g.add(body);
-  const eyeL = new THREE.Mesh(monsterEyeGeo, monsterEyeMat);
-  eyeL.position.set(-7, 28, 18);
-  const eyeR = eyeL.clone();
-  eyeR.position.x = 7;
-  g.add(eyeL, eyeR);
-  addShadow(g, 22);
-  g.userData.bobSeed = Math.random() * 100;
+  for (let i = 0; i < 3; i++) {
+    const leaf = new THREE.Mesh(bushLeafGeo, bushLeafMat);
+    leaf.position.set((Math.random() - 0.5) * 14, 8 + Math.random() * 3, (Math.random() - 0.5) * 14);
+    leaf.scale.setScalar(0.75 + Math.random() * 0.3);
+    g.add(leaf);
+  }
+  for (let i = 0; i < 5; i++) {
+    const berry = new THREE.Mesh(berryGeo, berryMat);
+    berry.position.set((Math.random() - 0.5) * 18, 8 + Math.random() * 6, (Math.random() - 0.5) * 18);
+    g.add(berry);
+  }
+  g.userData.baseScale = 1;
+  addShadow(g, 16);
   return g;
+}
+
+// ---------------- factory: mostro (aspetto diverso per tipo) ----------------
+const MONSTER_COLORS = { normal: '#5c1f18', fast: '#6b5a17', tank: '#2c2a46', boss: '#100e18' };
+const MONSTER_EYE_COLORS = { normal: '#ff2b2b', fast: '#ffd83a', tank: '#9a6cff', boss: '#ff2b2b' };
+const MONSTER_SCALES = { normal: 1, fast: 0.72, tank: 1.32, boss: 2.1 };
+const plateGeo = new THREE.BoxGeometry(6, 10, 3);
+const hornGeo = new THREE.ConeGeometry(3, 16, 5);
+const hornMat = new THREE.MeshStandardMaterial({ color: '#241f2c', roughness: 0.55 });
+
+export function createMonsterMesh(type = 'normal') {
+  const g = new THREE.Group();
+  const scale = MONSTER_SCALES[type] || 1;
+  const bodyMat = new THREE.MeshStandardMaterial({ color: MONSTER_COLORS[type] || MONSTER_COLORS.normal, roughness: 0.85 });
+  const body = new THREE.Mesh(monsterBodyGeo, bodyMat);
+  body.scale.set(20 * scale, 24 * scale, 24 * scale);
+  body.position.y = 24 * scale;
+  g.add(body);
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: MONSTER_EYE_COLORS[type] || MONSTER_EYE_COLORS.normal,
+    emissive: MONSTER_EYE_COLORS[type] || MONSTER_EYE_COLORS.normal, emissiveIntensity: 2.4,
+  });
+  const eyeL = new THREE.Mesh(monsterEyeGeo, eyeMat);
+  eyeL.scale.setScalar(type === 'boss' ? 1.6 : 1);
+  eyeL.position.set(-7 * scale, 28 * scale, 17 * scale);
+  const eyeR = eyeL.clone();
+  eyeR.position.x = 7 * scale;
+  g.add(eyeL, eyeR);
+  if (type === 'tank') {
+    for (let i = 0; i < 3; i++) {
+      const plate = new THREE.Mesh(plateGeo, rockMat);
+      plate.scale.setScalar(scale);
+      plate.position.set((i - 1) * 10 * scale, 27 * scale, 12 * scale);
+      g.add(plate);
+    }
+  }
+  if (type === 'boss') {
+    const hL = new THREE.Mesh(hornGeo, hornMat);
+    hL.scale.setScalar(scale * 0.9);
+    hL.position.set(-9 * scale, 44 * scale, 4 * scale); hL.rotation.z = 0.35;
+    const hR = hL.clone(); hR.position.x = 9 * scale; hR.rotation.z = -0.35;
+    g.add(hL, hR);
+  }
+  addShadow(g, 22 * scale);
+  g.userData.bobSeed = Math.random() * 100;
+  g.userData.bodyMat = bodyMat; g.userData.eyeMat = eyeMat;
+  return g;
+}
+function disposeMonsterMesh(mesh) {
+  mesh.userData.bodyMat?.dispose();
+  mesh.userData.eyeMat?.dispose();
 }
 
 // ---------------- attrezzi (condivisi fra vista in prima persona e modello degli altri giocatori) ----------------
@@ -189,7 +265,7 @@ export function createToolMesh(type) {
     stick.scale.set(0.7, 0.75, 0.7);
     const flame = createFlameSprite(20);
     flame.position.y = 20;
-    const light = new THREE.PointLight('#ff9a4a', 24, 340, 1);
+    const light = new THREE.PointLight('#ff9a4a', 24, 260, 2);
     light.position.y = 20;
     light.userData.seed = Math.random() * 100;
     g.add(stick, flame, light);
@@ -204,6 +280,13 @@ export function createToolMesh(type) {
 }
 
 // ---------------- factory: giocatore ----------------
+const helmetGeo = new THREE.SphereGeometry(12, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55);
+const helmetMat = new THREE.MeshStandardMaterial({ color: '#8f97a0', roughness: 0.4, metalness: 0.4 });
+const shieldGeo = new THREE.CylinderGeometry(11, 11, 2.4, 10);
+const shieldMat = new THREE.MeshStandardMaterial({ color: '#6b4a2c', roughness: 0.6 });
+const backpackGeo = new THREE.BoxGeometry(16, 20, 9);
+const backpackMat = new THREE.MeshStandardMaterial({ color: '#4a5a3a', roughness: 0.9 });
+
 export function createPlayerMesh(hue) {
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(`hsl(${hue}, 50%, 42%)`), roughness: 0.75 });
@@ -214,13 +297,23 @@ export function createPlayerMesh(hue) {
   const armor = new THREE.Mesh(playerBodyGeo, playerArmorMat);
   armor.position.y = 31; armor.scale.set(1.12, 0.62, 1.12);
   armor.visible = false;
+  const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+  helmet.position.y = 60; helmet.rotation.x = Math.PI;
+  helmet.visible = false;
+  const shield = new THREE.Mesh(shieldGeo, shieldMat);
+  shield.rotation.z = Math.PI / 2;
+  shield.position.set(-17, 40, 6);
+  shield.visible = false;
+  const backpack = new THREE.Mesh(backpackGeo, backpackMat);
+  backpack.position.set(0, 36, -13);
+  backpack.visible = false;
   const nameSprite = makeNameSprite('');
   nameSprite.position.y = 80;
   const toolSlot = new THREE.Group();
   toolSlot.position.set(15, 42, 10);
-  g.add(body, head, armor, nameSprite, toolSlot);
+  g.add(body, head, armor, helmet, shield, backpack, nameSprite, toolSlot);
   addShadow(g, 20);
-  g.userData = { bodyMat, armor, nameSprite, toolSlot, lastTool: null, lastName: null };
+  g.userData = { bodyMat, armor, helmet, shield, backpack, nameSprite, toolSlot, lastTool: null, lastName: null };
   return g;
 }
 
@@ -256,6 +349,26 @@ export function createStructureMesh(type) {
     m.position.y = 30;
     return m;
   }
+  if (type === 'pit') {
+    const g = new THREE.Group();
+    const rimGeo = new THREE.TorusGeometry(30, 3.2, 6, 16);
+    const rim = new THREE.Mesh(rimGeo, logMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 2;
+    const pitMat = new THREE.MeshBasicMaterial({ color: '#050403' });
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(27, 20), pitMat);
+    hole.rotation.x = -Math.PI / 2;
+    hole.position.y = 1.5;
+    g.add(rim, hole);
+    for (let i = 0; i < 4; i++) {
+      const stake = new THREE.Mesh(spikeGeo, spikeMat);
+      stake.scale.setScalar(0.6);
+      stake.position.set((Math.random() - 0.5) * 30, -6, (Math.random() - 0.5) * 30);
+      stake.rotation.x = Math.PI;
+      g.add(stake);
+    }
+    return g;
+  }
   if (type === 'spikes') {
     const g = new THREE.Group();
     for (let i = 0; i < 6; i++) {
@@ -277,7 +390,7 @@ export function createStructureMesh(type) {
     }
     const flame = createFlameSprite(34);
     flame.position.y = 22;
-    const light = new THREE.PointLight('#ff8a3a', 55, 500, 1);
+    const light = new THREE.PointLight('#ff8a3a', 55, 340, 2);
     light.position.y = 20;
     light.userData.seed = Math.random() * 100;
     g.add(flame, light);
@@ -291,7 +404,7 @@ export function createStructureMesh(type) {
     post.position.y = 23;
     const flame = createFlameSprite(24);
     flame.position.y = 48;
-    const light = new THREE.PointLight('#ff9a4a', 24, 340, 1);
+    const light = new THREE.PointLight('#ff9a4a', 24, 280, 2);
     light.position.y = 48;
     light.userData.seed = Math.random() * 100;
     g.add(post, flame, light);
@@ -340,9 +453,9 @@ let sceneRef = null;
 export function initEntities(scene) { sceneRef = scene; }
 
 export function addResourceToScene(res) {
-  const mesh = res.type === 'tree' ? createTreeMesh() : res.type === 'rock' ? createRockMesh() : createFiberMesh();
+  const mesh = res.type === 'tree' ? createTreeMesh() : res.type === 'rock' ? createRockMesh() : res.type === 'bush' ? createBushMesh() : createFiberMesh();
   mesh.position.set(res.x, 0, res.y);
-  mesh.userData.maxAmount = res.type === 'fiber' ? 3 : 5;
+  mesh.userData.maxAmount = (res.type === 'fiber' || res.type === 'bush') ? 3 : 5;
   sceneRef.add(mesh);
   resourceMeshes.set(res.id, mesh);
 }
@@ -388,7 +501,7 @@ export function syncMonsters(list) {
     seen.add(m.id);
     let mesh = monsterMeshes.get(m.id);
     if (!mesh) {
-      mesh = createMonsterMesh();
+      mesh = createMonsterMesh(m.type || 'normal');
       mesh.position.set(m.x, 0, m.y);
       mesh.userData.lastX = m.x; mesh.userData.lastY = m.y;
       sceneRef.add(mesh);
@@ -401,7 +514,7 @@ export function syncMonsters(list) {
     mesh.position.y = Math.sin(t * 0.006 + mesh.userData.bobSeed) * 2 + 2;
   }
   for (const [id, mesh] of monsterMeshes) {
-    if (!seen.has(id)) { sceneRef.remove(mesh); monsterMeshes.delete(id); }
+    if (!seen.has(id)) { sceneRef.remove(mesh); disposeMonsterMesh(mesh); monsterMeshes.delete(id); }
   }
 }
 
@@ -417,6 +530,9 @@ export function syncPlayers(playersObj, myId) {
     mesh.position.set(p.x, 0, p.y);
     orientToward(mesh, Math.cos(p.angle), Math.sin(p.angle));
     mesh.userData.armor.visible = !!p.hasArmor;
+    mesh.userData.helmet.visible = !!p.hasHelmet;
+    mesh.userData.shield.visible = !!p.hasShield;
+    mesh.userData.backpack.visible = !!p.hasBackpack;
     if (mesh.userData.lastName !== p.name) { updateNameSprite(mesh.userData.nameSprite, p.name); mesh.userData.lastName = p.name; }
     if (mesh.userData.lastTool !== p.equipped) {
       mesh.userData.toolSlot.clear();
